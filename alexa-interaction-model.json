@@ -1,0 +1,70 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "看護師メッセージ",
+      "intents": [
+        {
+          "name": "LineMessageIntent",
+          "slots": [
+            {
+              "name": "message",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "{message} と送って",
+            "{message} って送って",
+            "{message} を送って",
+            "送って",
+            "メッセージを送って"
+          ]
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    },
+    "dialog": {
+      "intents": [
+        {
+          "name": "LineMessageIntent",
+          "confirmationRequired": false,
+          "prompts": {},
+          "slots": [
+            {
+              "name": "message",
+              "type": "AMAZON.SearchQuery",
+              "confirmationRequired": false,
+              "elicitationRequired": true,
+              "prompts": {
+                "elicitation": "Elicit.Slot.LineMessageIntent.message"
+              }
+            }
+          ]
+        }
+      ],
+      "delegationStrategy": "SKILL_RESPONSE"
+    },
+    "prompts": [
+      {
+        "id": "Elicit.Slot.LineMessageIntent.message",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "メッセージをどうぞ。"
+          }
+        ]
+      }
+    ]
+  }
+}

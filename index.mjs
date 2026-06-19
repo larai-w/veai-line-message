@@ -70,7 +70,7 @@ export const handler = async (event) => {
 
   if (requestType === 'LaunchRequest') {
     return buildAlexaResponse(
-      'LINEメッセージ送信システムを起動しました。「LINEで」に続けてメッセージを話しかけてください。',
+      '看護師メッセージです。送りたいメッセージを言ったあと「送って」と言ってください。',
       false
     );
   }
@@ -79,9 +79,21 @@ export const handler = async (event) => {
     const intentName = event.request.intent?.name;
 
     if (intentName === 'LineMessageIntent') {
+      const dialogState = event.request.dialogState;
+
+      if (dialogState !== 'COMPLETED') {
+        return {
+          version: '1.0',
+          response: {
+            directives: [{ type: 'Dialog.Delegate' }],
+            shouldEndSession: false,
+          },
+        };
+      }
+
       const message = event.request.intent?.slots?.message?.value;
       if (!message) {
-        return buildAlexaResponse('送信するメッセージが聞き取れませんでした。もう一度お試しください。');
+        return buildAlexaResponse('メッセージが聞き取れませんでした。もう一度お試しください。');
       }
       try {
         await sendLineMessage(message);
@@ -93,12 +105,12 @@ export const handler = async (event) => {
     }
 
     if (intentName === 'AMAZON.StopIntent' || intentName === 'AMAZON.CancelIntent') {
-      return buildAlexaResponse('LINEメッセージ送信システムを終了します。');
+      return buildAlexaResponse('看護師メッセージを終了します。');
     }
 
     if (intentName === 'AMAZON.HelpIntent') {
       return buildAlexaResponse(
-        '「LINEで」に続けてメッセージを話しかけると、LINEにメッセージを送ります。',
+        '送りたいメッセージを言ったあと「送って」と言ってください。例えば「明日10時に来てください、送って」のように話しかけてください。',
         false
       );
     }
