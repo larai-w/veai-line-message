@@ -5,7 +5,8 @@
   "main": "index.mjs",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "license": "ISC"
 }
