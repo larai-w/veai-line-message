@@ -32,6 +32,9 @@ function sendLineMessage(message) {
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
+          // 成功時も応答コードを残す。失敗時しか記録が無いと、
+          // 「送ったつもりで届いていない」を後から切り分けられない。
+          console.log(`LINE API ok: ${res.statusCode}`);
           resolve(data);
         } else {
           reject(new Error(`LINE API error: ${res.statusCode} ${data}`));
