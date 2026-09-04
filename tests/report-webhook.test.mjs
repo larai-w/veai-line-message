@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 // 本物のシークレットも同じ経路で通ってしまう。
 const DUMMY_SECRET = ['dummy', 'report', 'not', 'a', 'real', 'secret'].join('-');
 process.env.REPORT_WEBHOOK_SECRET = DUMMY_SECRET;
+process.env.EVENT_WEBHOOK_SECRET = ['dummy', 'event', 'not', 'a', 'real', 'secret'].join('-');
 delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
 delete process.env.LINE_USER_ID;
 

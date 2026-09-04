@@ -9,7 +9,7 @@ An AWS Lambda function with two entries:
    `LineMessageIntent` (with a spoken `message` slot), the handler forwards that
    text to the [LINE Messaging API](https://developers.line.biz/en/reference/messaging-api/)
    as a push message — a hands-free way to send a LINE note by voice.
-2. **Webhook → LINE** — the daily care summary receiver. The
+2. **Webhook → LINE** — the daily care summary and monitoring-event receiver. The
    [microduck-alexa-bridge](https://github.com/larai-w/microduck-alexa-bridge)
    home-care bridge POSTs one `daily_summary` JSON per day; the handler validates
    it, formats it into a fixed Japanese template, and pushes it to the family's
@@ -29,6 +29,11 @@ microduck-alexa-bridge (daily report scheduler)
         └─ Same AWS Lambda  (function-URL branch)
               └─ validate → formatDailySummary (deterministic template)
                     └─ LINE Messaging API push → LINE_USER_ID (family)
+
+  microduck-alexa-bridge (monitoring event)
+    └─ POST {"type":"fall_detected"|"battery_low"|"duck_unhealthy"|"duck_offline"|"duck_online", ...}
+       (Lambda function URL + x-event-secret)
+          └─ validate → fixed Japanese alert → LINE push → LINE_USER_ID
 ```
 
 - `index.mjs` — the Lambda handler: parses the Alexa request or the report
@@ -48,6 +53,7 @@ Copy `.env.example` and set:
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API channel access token |
 | `LINE_USER_ID` | Destination LINE user ID for the push message |
 | `REPORT_WEBHOOK_SECRET` | Shared secret for the daily-summary webhook. **Unset = the webhook entry is disabled (fail closed).** |
+| `EVENT_WEBHOOK_SECRET` | Shared secret for Microduck monitoring events. **Unset = the event entry is disabled (fail closed).** |
 
 Secrets are provided as Lambda environment variables — never hardcoded. `.env` is gitignored.
 

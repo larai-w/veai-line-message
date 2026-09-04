@@ -6,6 +6,7 @@ const {
   // microduck の日次介護サマリーを受け取る Webhook の共有シークレット。
   // 未設定なら入口ごと無効（誰でも家族LINEに送れる状態にしない、fail closed）。
   REPORT_WEBHOOK_SECRET,
+  EVENT_WEBHOOK_SECRET,
 } = process.env;
 
 function sendLineMessage(message) {
@@ -121,6 +122,60 @@ export function formatDailySummary(report) {
   ].join('\n');
 }
 
+const EVENT_TYPES = new Set(['fall_detected', 'battery_low', 'duck_unhealthy', 'duck_offline', 'duck_online']);
+
+export function parseMicroduckEvent(rawBody) {
+  let body;
+  try { body = JSON.parse(rawBody); } catch { return null; }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  if (!EVENT_TYPES.has(body.type) || typeof body.ts !== 'string' || !body.ts) return null;
+  if (body.source !== 'duckbridge' || !body.detail || typeof body.detail !== 'object' || Array.isArray(body.detail)) return null;
+  return body;
+}
+
+export function formatMicroduckEvent(event) {
+  const labels = {
+    fall_detected: '転倒を検知しました。まず本人の状態を確認してください。',
+    battery_low: 'Microduckのバッテリーが低下しています。',
+    duck_unhealthy: 'Microduckの制御状態が正常ではありません。',
+    duck_offline: 'Microduckが応答していません。',
+    duck_online: 'Microduckが再接続しました。',
+  };
+  return `【Microduck通知】\n${labels[event.type]}`;
+}
+
+async function handleEventWebhook(event) {
+  const reply = (statusCode, body) => ({
+    statusCode,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!EVENT_WEBHOOK_SECRET) {
+    console.error('EVENT_WEBHOOK_SECRET is not set; event entry is disabled.');
+    return reply(503, { error: 'event webhook disabled' });
+  }
+  const provided = event.headers?.['x-event-secret'];
+  if (!provided || !timingSafeEqualString(provided, EVENT_WEBHOOK_SECRET)) {
+    console.warn('Event webhook rejected: bad or missing secret.');
+    return reply(401, { error: 'unauthorized' });
+  }
+  const rawBody = event.isBase64Encoded
+    ? Buffer.from(event.body ?? '', 'base64').toString('utf-8')
+    : (event.body ?? '');
+  const microduckEvent = parseMicroduckEvent(rawBody);
+  if (!microduckEvent) {
+    console.warn('Event webhook rejected: invalid microduck event payload.');
+    return reply(400, { error: 'invalid microduck event payload' });
+  }
+  try {
+    await sendLineMessage(formatMicroduckEvent(microduckEvent));
+    return reply(200, { ok: true, type: microduckEvent.type });
+  } catch (err) {
+    console.error('Failed to push Microduck event to LINE:', err);
+    return reply(502, { error: 'LINE push failed' });
+  }
+}
+
 /**
  * microduck ブリッジからの日次介護サマリー Webhook を処理する。
  *
@@ -180,6 +235,21 @@ export const handler = async (event) => {
   // Lambda 関数URL 経由で来るため、Alexa のイベントとは形が違う
   // (requestContext を持ち、request.type を持たない)。
   if (event?.requestContext?.http) {
+    const rawBody = event.isBase64Encoded
+      ? Buffer.from(event.body ?? '', 'base64').toString('utf-8')
+      : (event.body ?? '');
+    let parsedBody = null;
+    try { parsedBody = JSON.parse(rawBody); } catch { /* report handler returns 400 */ }
+    // 既知のイベント、またはイベント用ヘッダーが明示された場合だけ
+    // イベント入口へ振り分ける。未知の type を日次サマリー入口に混ぜず、
+    // 既存の report webhook の「daily_summary 以外は400」も維持する。
+    if (
+      parsedBody?.type
+      && parsedBody.type !== 'daily_summary'
+      && (EVENT_TYPES.has(parsedBody.type) || event.headers?.['x-event-secret'])
+    ) {
+      return handleEventWebhook(event);
+    }
     return handleReportWebhook(event);
   }
 
