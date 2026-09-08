@@ -89,7 +89,7 @@ const SUMMARY_NUMBER_FIELDS = [
  * 壊れた入力は 400 で落とす（受け取ったことにしない＝ブリッジがリトライできる）。
  * 戻り値は検証済みオブジェクト、違反時は null。
  */
-function parseDailySummary(rawBody) {
+export function parseDailySummary(rawBody) {
   let body;
   try {
     body = JSON.parse(rawBody);
@@ -103,6 +103,15 @@ function parseDailySummary(rawBody) {
     const value = body[field];
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
   }
+  if (Object.hasOwn(body, 'call_status')) {
+    const status = body.call_status;
+    const counts = ['acknowledged', 'pending', 'unknown', 'not_configured', 'human_unknown'];
+    if (!status || typeof status !== 'object' || Array.isArray(status) || status.version !== 1) return null;
+    if (Object.keys(status).length !== counts.length + 1) return null;
+    if (counts.some(key => !Number.isSafeInteger(status[key]) || status[key] < 0)) return null;
+    const total = status.acknowledged + status.pending + status.unknown + status.not_configured;
+    if (!Number.isSafeInteger(total) || status.human_unknown !== total) return null;
+  }
   return body;
 }
 
@@ -113,11 +122,21 @@ function parseDailySummary(rawBody) {
 export function formatDailySummary(report) {
   const minutes = Math.round((report.pace_duration_s / 60) * 10) / 10;
   const meters = Math.round(report.pace_distance_m);
+  const status = report.call_status;
+  const callLines = status ? [
+    `ナースコール記録: システム受付${status.acknowledged}件・処理中${status.pending}件・結果不明${status.unknown}件・呼び出し先未設定${status.not_configured}件`,
+    `人の確認: 未確認${status.human_unknown}件（確認情報の連携なし）`,
+  ] : [
+    `ナースコール記録（旧形式）: システム応答あり${report.nurse_calls_ok}件・送信完了を確認できず${report.nurse_calls_failed}件`,
+    '人の確認: 不明（旧形式に確認情報なし）',
+  ];
   return [
     `【介護サマリー】${report.date}`,
     `歩行: ${report.pace_sessions}回・計${minutes}分・約${meters}m`,
     `リマインド: ${report.reminders}回（うち安否確認${report.checkins}回）`,
-    `ナースコール: 成功${report.nurse_calls_ok}回・失敗${report.nurse_calls_failed}回`,
+    ...callLines,
+    '※件数は再送を含む記録の集計で、現在の対応状況ではありません。',
+    '※受付は人の対応完了を意味しません。記録0件でも異常なしとは判断できません。',
     `その他コマンド: ${report.commands}回`,
   ].join('\n');
 }

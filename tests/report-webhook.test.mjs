@@ -21,7 +21,7 @@ process.env.EVENT_WEBHOOK_SECRET = ['dummy', 'event', 'not', 'a', 'real', 'secre
 delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
 delete process.env.LINE_USER_ID;
 
-const { handler, formatDailySummary } = await import('../index.mjs');
+const { handler, formatDailySummary, parseDailySummary } = await import('../index.mjs');
 
 const VALID_REPORT = {
   type: 'daily_summary',
@@ -118,7 +118,8 @@ test('定型文: 数値がそのまま家族向けテキストになる', () => 
   assert.match(text, /【介護サマリー】2026-09-02/);
   assert.match(text, /歩行: 3回・計5.5分・約320m/);
   assert.match(text, /リマインド: 4回（うち安否確認1回）/);
-  assert.match(text, /ナースコール: 成功1回・失敗0回/);
+  assert.match(text, /システム応答あり1件・送信完了を確認できず0件/);
+  assert.match(text, /人の確認: 不明/);
   assert.match(text, /その他コマンド: 2回/);
 });
 
@@ -134,6 +135,40 @@ test('定型文: 分数は1桁に丸める（125秒→2.1分、99.6m→100m）',
 });
 
 // --- Alexa 経路の不変 ---------------------------------------------------------
+
+const CALL_STATUS = { version: 1, acknowledged: 2, pending: 1, unknown: 3, not_configured: 1, human_unknown: 7 };
+
+test('新形式: 受付と人の確認を分ける', () => {
+  const report = parseDailySummary(JSON.stringify({ ...VALID_REPORT, call_status: CALL_STATUS }));
+  assert.ok(report);
+  const text = formatDailySummary(report);
+  assert.match(text, /システム受付2件・処理中1件・結果不明3件・呼び出し先未設定1件/);
+  assert.match(text, /人の確認: 未確認7件（確認情報の連携なし）/);
+  assert.doesNotMatch(text, /成功|失敗|対応済み/);
+  assert.match(text, /再送を含む記録の集計で、現在の対応状況ではありません/);
+});
+
+test('新形式: 欠落・不正値・不整合は旧形式へ戻さず拒否する', async () => {
+  const { pending, ...partial } = CALL_STATUS;
+  const bad = [null, [], partial, { ...CALL_STATUS, version: 2 },
+    { ...CALL_STATUS, human_unknown: 0 }, { ...CALL_STATUS, human_confirmed: 1 }];
+  for (const key of ['acknowledged', 'pending', 'unknown', 'not_configured', 'human_unknown']) {
+    for (const value of [-1, 0.5, true, '1', Number.MAX_SAFE_INTEGER + 1]) {
+      bad.push({ ...CALL_STATUS, [key]: value });
+    }
+  }
+  for (const call_status of bad) {
+    const body = JSON.stringify({ ...VALID_REPORT, call_status });
+    assert.equal(parseDailySummary(body), null);
+    assert.equal((await handler(webhookEvent({ 'x-report-secret': DUMMY_SECRET }, null, body))).statusCode, 400);
+  }
+});
+
+test('新形式: 全0でも安全・対応済みを推定しない', () => {
+  const status = Object.fromEntries(Object.keys(CALL_STATUS).map(key => [key, key === 'version' ? 1 : 0]));
+  const text = formatDailySummary({ ...VALID_REPORT, call_status: status });
+  assert.match(text, /記録0件でも異常なしとは判断できません/);
+});
 
 test('Webhook を足しても Alexa の経路は変わらない', async () => {
   const r = await handler({ request: { type: 'LaunchRequest' } });

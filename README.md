@@ -84,12 +84,29 @@ Message format (deterministic, no GenAI):
 【介護サマリー】2026-09-02
 歩行: 3回・計5.5分・約320m
 リマインド: 4回（うち安否確認1回）
-ナースコール: 成功1回・失敗0回
+ナースコール記録: システム受付1件・処理中0件・結果不明0件・呼び出し先未設定0件
+人の確認: 未確認1件（確認情報の連携なし）
+※件数は再送を含む記録の集計で、現在の対応状況ではありません。
+※受付は人の対応完了を意味しません。記録0件でも異常なしとは判断できません。
 その他コマンド: 2回
 ```
 
-Numbers are reported as-is; a quiet day shows zeros rather than an invented
-narrative.
+Numbers are reported as-is. Zero records do not establish that no event occurred
+or that someone is safe. Counts summarize audit rows, including retries; they
+are neither unique calls nor a query of current response status.
+
+The optional `call_status` object uses version `1` and nonnegative safe-integer
+counts: `acknowledged`, `pending`, `unknown`, `not_configured`, and
+`human_unknown`. The last count must equal the sum of the first four. A present
+but malformed object is rejected with `400`; it never silently falls back to
+legacy formatting. System acknowledgement does not prove a human has seen or
+responded to a call. This report has no authenticated human-confirmation feed.
+
+Reports without `call_status` remain accepted. Their legacy success/failure
+counters are labelled as system response / unconfirmed delivery, with human
+confirmation unknown. Update the receiver before enabling the sender's new
+format; an older receiver ignores the additional field and retains its older
+wording.
 
 ## Test
 
