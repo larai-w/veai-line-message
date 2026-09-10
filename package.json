@@ -8,5 +8,5 @@
     "test": "node --test 'tests/*.test.mjs'",
     "prepare": "git config core.hooksPath .githooks || true"
   },
-  "license": "ISC"
+  "license": "MIT"
 }
