@@ -122,3 +122,9 @@ into `function.zip` (gitignored) and uploaded to the Lambda function.
 ## License
 
 MIT — Part of the [VEAI LAB.](https://veai.jp) ecosystem.
+
+## Contributing
+
+- [CONTRIBUTING](./CONTRIBUTING.md)
+- [Good first issue](https://github.com/larai-w/veai-line-message/issues/new?template=good-first-issue.yml)
+- [Open a pull request](https://github.com/larai-w/veai-line-message/compare)
