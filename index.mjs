@@ -1,3 +1,4 @@
+import { handleCareCall } from './carecall.mjs';
 import https from 'https';
 
 const {
@@ -248,6 +249,8 @@ async function handleReportWebhook(event) {
 }
 
 export const handler = async (event) => {
+  const carecall = await handleCareCall(event);
+  if (carecall !== null) return carecall;
   console.log('Received event:', JSON.stringify(event, null, 2));
 
   // --- microduck 日次介護サマリーの Webhook ---------------------------------

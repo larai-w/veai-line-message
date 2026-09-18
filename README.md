@@ -3,7 +3,7 @@
 **A serverless LINE notification bridge: voice notes from Alexa, and the daily
 care summary from the microduck care bridge, both pushed to LINE.**
 
-An AWS Lambda function with two entries:
+An AWS Lambda function with three entries:
 
 1. **Voice → LINE** — a custom Alexa skill. When the skill hears the
    `LineMessageIntent` (with a spoken `message` slot), the handler forwards that
@@ -15,12 +15,17 @@ An AWS Lambda function with two entries:
    it, formats it into a fixed Japanese template, and pushes it to the family's
    LINE. Part of the [VEAI LAB.](https://veai.jp) ecosystem.
 
+3. **Call confirmation** — authenticated call submission and status lookup, plus
+   a signature-checked LINE postback that records acknowledgement. The route is
+   disabled unless its configuration is complete. A LINE acceptance response is
+   not a human acknowledgement.
+
 ## How it works
 
 ```
 Alexa device (voice)
   └─ Custom Alexa skill  (alexa-interaction-model.json — LineMessageIntent + message slot)
-        └─ AWS Lambda  (index.mjs, Node.js ESM, zero runtime deps — uses built-in https)
+        └─ AWS Lambda  (index.mjs, Node.js ESM — uses built-in https for legacy notifications)
               └─ LINE Messaging API  POST /v2/bot/message/push
                     └─ Push text to LINE_USER_ID
 
@@ -42,7 +47,8 @@ microduck-alexa-bridge (daily report scheduler)
 - `tests/` — node:test suite. Fixes the webhook auth (fail-closed) and the
   summary formatting; never calls the real LINE API.
 - `.github/workflows/deploy.yml` — CI/CD: packages and deploys the Lambda.
-- No external npm dependencies at runtime; the LINE call uses Node's built-in `https`.
+- Legacy LINE calls use Node's built-in `https`. Call confirmation uses built-in
+  `fetch` and the AWS SDK v3 provided by the Node.js Lambda runtime for DynamoDB.
 
 ## Configuration
 
@@ -56,6 +62,21 @@ Copy `.env.example` and set:
 | `EVENT_WEBHOOK_SECRET` | Shared secret for Microduck monitoring events. **Unset = the event entry is disabled (fail closed).** |
 
 Secrets are provided as Lambda environment variables — never hardcoded. `.env` is gitignored.
+
+## Optional call confirmation
+
+`carecall.mjs` handles `POST /carecall`, `GET /carecall/{id}`, and
+`POST /line/carecall/webhook` before generic event logging. Device requests need
+`x-carecall-token`; LINE postbacks need a valid signature and matching sender.
+Repeated submissions do not send another notification. Acknowledgement is saved
+before replying, so a reply failure does not erase the recorded status.
+
+Enable only after provisioning a DynamoDB table with string partition key `id`
+and granting the function its required item read/write permissions. Configuration:
+`CARECALL_ENABLED=1`, `CARECALL_TABLE`, `CARECALL_DEVICE_SECRET`, `CARECALL_MESSAGE`,
+`LINE_BOT_USER_ID`, and `LINE_CHANNEL_SECRET`, plus the existing LINE token and
+recipient variables. All values belong in Lambda environment variables. Tests
+use synthetic data and injected transports; they send no real notifications.
 
 ## Daily care summary receiver
 
@@ -116,8 +137,13 @@ npm test   # node --test 'tests/*.test.mjs'
 
 ## Deploy
 
-Deployment is automated via GitHub Actions (`.github/workflows/deploy.yml`). The handler is packaged
-into `function.zip` (gitignored) and uploaded to the Lambda function.
+A push to `main` or a manual run of `.github/workflows/deploy.yml` deploys to
+Lambda. The workflow runs `npm test` first, then packages both `index.mjs` and
+`carecall.mjs` with `node scripts/build-package.mjs function.zip`. Packaging tests
+extract the archive and exercise its actual entrypoint so a missing route cannot
+silently pass. The builder refuses an existing archive to avoid retaining stale
+files. Deployment output is limited to the code hash and update status; Lambda
+environment values must not be printed to CI logs.
 
 ## License
 
