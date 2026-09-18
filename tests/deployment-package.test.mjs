@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 
 const build = fileURLToPath(new URL('../scripts/build-package.mjs', import.meta.url));
 const routing = fileURLToPath(new URL('./carecall-routing.test.mjs', import.meta.url));
@@ -22,6 +22,10 @@ test('deployment archive preserves every entry and contains only runtime modules
     env:{...process.env, ROUTING_TEST_ENTRY:join(dir,'index.mjs'), CARECALL_ENABLED:'0'}, encoding:'utf8'
   });
   assert.equal(checked.status, 0, checked.stdout + checked.stderr);
+  const privacy = spawnSync(process.execPath, ['--test', fileURLToPath(new URL('./log-privacy.test.mjs', import.meta.url))], {
+    env:{...process.env, TEST_HANDLER_URL:pathToFileURL(join(dir,'index.mjs')).href}, encoding:'utf8'
+  });
+  assert.equal(privacy.status, 0, privacy.stdout + privacy.stderr);
 });
 test('packaging refuses an existing archive without changing it', t => {
   const dir=mkdtempSync(join(tmpdir(),'line-package-existing-'));

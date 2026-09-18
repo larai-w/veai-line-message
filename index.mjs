@@ -191,7 +191,7 @@ async function handleEventWebhook(event) {
     await sendLineMessage(formatMicroduckEvent(microduckEvent));
     return reply(200, { ok: true, type: microduckEvent.type });
   } catch (err) {
-    console.error('Failed to push Microduck event to LINE:', err);
+    console.error('Microduck event LINE push failed.');
     return reply(502, { error: 'LINE push failed' });
   }
 }
@@ -243,7 +243,7 @@ async function handleReportWebhook(event) {
     await sendLineMessage(formatDailySummary(report));
     return reply(200, { ok: true, date: report.date });
   } catch (err) {
-    console.error('Failed to push daily summary to LINE:', err);
+    console.error('Daily summary LINE push failed.');
     return reply(502, { error: 'LINE push failed' });
   }
 }
@@ -251,7 +251,8 @@ async function handleReportWebhook(event) {
 export const handler = async (event) => {
   const carecall = await handleCareCall(event);
   if (carecall !== null) return carecall;
-  console.log('Received event:', JSON.stringify(event, null, 2));
+  // Log only fixed categories; never headers, bodies, slots, or provider errors.
+  console.log('Request received:', event?.requestContext?.http ? 'http' : 'alexa');
 
   // --- microduck 日次介護サマリーの Webhook ---------------------------------
   // Lambda 関数URL 経由で来るため、Alexa のイベントとは形が違う
@@ -278,7 +279,7 @@ export const handler = async (event) => {
   const requestType = event?.request?.type;
 
   if (!requestType) {
-    console.warn('No request type found in event:', JSON.stringify(event));
+    console.warn('Request type missing.');
     return buildAlexaResponse('リクエストの種類が不明です。');
   }
 
@@ -313,7 +314,7 @@ export const handler = async (event) => {
         await sendLineMessage(message);
         return buildAlexaResponse('LINEでメッセージを送信しました。');
       } catch (err) {
-        console.error('Failed to send LINE message:', err);
+        console.error('Alexa LINE push failed.');
         return buildAlexaResponse('申し訳ありません。LINEへの送信に失敗しました。もう一度お試しください。');
       }
     }
@@ -333,7 +334,7 @@ export const handler = async (event) => {
   }
 
   if (requestType === 'SessionEndedRequest') {
-    console.log('Session ended:', event.request.reason);
+    console.log('Session ended.');
     return {};
   }
 

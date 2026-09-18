@@ -50,6 +50,13 @@ microduck-alexa-bridge (daily report scheduler)
 - Legacy LINE calls use Node's built-in `https`. Call confirmation uses built-in
   `fetch` and the AWS SDK v3 provided by the Node.js Lambda runtime for DynamoDB.
 
+## Logging
+
+Handler logs use fixed request categories and outcome messages, plus numeric LINE
+response codes. They omit request headers, query parameters, bodies, Alexa slots,
+user context, session-end reasons, and provider error details. Regression tests
+exercise the source handler and the deployment archive with synthetic data.
+
 ## Configuration
 
 Copy `.env.example` and set:
