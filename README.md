@@ -104,7 +104,10 @@ The entry is fail-closed on every layer:
 | Missing/wrong `x-report-secret` (or `?secret=`) | `401` |
 | Body not a valid `daily_summary` (bad JSON, wrong type, bad date, negative/missing numbers) | `400` |
 | LINE push fails | `502` — the bridge retries within the same report minute |
-| Delivered | `200 {"ok": true, "date": ...}` |
+| LINE API accepted the push request | `200 {"ok": true, "date": ...}` |
+
+A `200` response confirms the LINE API accepted the request; it does not
+confirm delivery to the recipient, that anyone read it, or that care was provided.
 
 Message format (deterministic, no GenAI):
 
@@ -129,6 +132,8 @@ counts: `acknowledged`, `pending`, `unknown`, `not_configured`, and
 but malformed object is rejected with `400`; it never silently falls back to
 legacy formatting. System acknowledgement does not prove a human has seen or
 responded to a call. This report has no authenticated human-confirmation feed.
+The optional call-confirmation button records a separate postback; its status
+is not included in these daily-summary counts.
 
 Reports without `call_status` remain accepted. Their legacy success/failure
 counters are labelled as system response / unconfirmed delivery, with human
